@@ -49,6 +49,59 @@ curl -X POST \
   }'
 ```
 
+### Form Submission
+The render endpoint also supports form submission. You can provide form data and selectors to fill and submit forms on the target page.
+
+Example request for form submission:
+
+``` sh
+curl -X POST \
+  http://localhost:3000/render \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "url": "https://example.com/contact",
+    "formData": {
+      "name": "John Doe",
+      "email": "john.doe@example.com",
+      "message": "Hello, this is a test message."
+    },
+    "formSelector": "form#contact-form",
+    "submitSelector": "button[type=submit]"
+  }'
+```
+
+Parameters:
+- `formData`: Object containing field names and their values.
+- `formSelector`: CSS selector for the form element.
+- `submitSelector`: (Optional) CSS selector for the submit button. If not provided, the form will be submitted programmatically.
+
+The response will include the resulting page after form submission.
+
+### Tracking Supabase API Calls
+The render server automatically tracks any Supabase API calls made by the rendered page. This includes API keys and authorization headers, which can be useful for security audits.
+
+The response includes a `supabaseCalls` array with details about each call:
+
+``` json
+{
+  "page": "...",
+  "status": 200,
+  "headers": { ... },
+  "finalUrl": "https://example.com",
+  "supabaseCalls": [
+    {
+      "url": "https://your-project.supabase.co/rest/v1/table",
+      "method": "GET",
+      "headers": {
+        "apikey": "your-api-key",
+        "authorization": "Bearer token"
+      },
+      "postData": "..."
+    }
+  ]
+}
+```
+
 ## Providing Chore Executable Path
 If you need to provide a custom executable path for Chromium or Chrome, you can set the CHROME_EXECUTABLE_PATH environment variable before starting the server:
 
