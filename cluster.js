@@ -30,6 +30,10 @@ const launchOptions = {
         '--deterministic-fetch',
         '--disable-features=IsolateOrigins',
         '--disable-site-isolation-trials',
+        '--disable-background-timer-throttling',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-renderer-backgrounding',
+        '--memory-pressure-off',
         // '--single-process',
 
     ],
