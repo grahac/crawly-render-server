@@ -7,7 +7,7 @@ let errorCount = 0;
 const app = express();
 const port = 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: '2mb' }));
 // Function to log server stats
 const logServerStats = () => {
     console.log(`Served Requests: ${servedRequests}`);
@@ -245,6 +245,76 @@ if (process.env.MAX_CONCURRENCY) {
         
         next();
     };
+
+    // PDF endpoint: accepts raw HTML, returns PDF binary
+    app.post('/pdf', async (req, res) => {
+        const { html, options = {} } = req.body;
+        if (!html) {
+            return res.status(400).json({ error: 'HTML parameter is required.' });
+        }
+
+        const startTime = Date.now();
+        console.log(`[PDF] Starting PDF generation (html length: ${html.length})`);
+
+        let browser = null;
+        let page = null;
+        try {
+            const puppeteer = require('puppeteer');
+            browser = await puppeteer.launch({
+                headless: 'new',
+                args: ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage'],
+                ...(process.env.CHROME_EXECUTABLE_PATH && {
+                    executablePath: process.env.CHROME_EXECUTABLE_PATH,
+                }),
+            });
+            page = await browser.newPage();
+
+            // Expose a helper so inline scripts can signal "charts are ready"
+            let chartsReady = false;
+            await page.exposeFunction('__chartsReady', () => {
+                chartsReady = true;
+            });
+
+            await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 });
+
+            // Give Chart.js a moment to finish rendering if the page flagged readiness
+            try {
+                await page.waitForFunction(() => window.__allChartsRendered === true, {
+                    timeout: 5000,
+                });
+            } catch (_) {
+                // Charts may not use the flag – that's fine, networkidle0 already waited
+            }
+
+            const pdfOptions = {
+                format: options.format || 'A4',
+                margin: options.margin || {
+                    top: '1cm',
+                    right: '1cm',
+                    bottom: '1cm',
+                    left: '1cm',
+                },
+                printBackground: options.printBackground !== false,
+                landscape: options.landscape || false,
+            };
+
+            const pdfBuffer = await page.pdf(pdfOptions);
+            const elapsed = Date.now() - startTime;
+            console.log(`[PDF] Generated PDF in ${elapsed}ms (${pdfBuffer.length} bytes)`);
+
+            servedRequests++;
+            res.set('Content-Type', 'application/pdf');
+            res.send(pdfBuffer);
+        } catch (err) {
+            errorCount++;
+            const elapsed = Date.now() - startTime;
+            console.error(`[PDF] Error after ${elapsed}ms:`, err.message);
+            res.status(500).json({ error: 'PDF generation failed: ' + err.message });
+        } finally {
+            if (page) await page.close().catch(() => {});
+            if (browser) await browser.close().catch(() => {});
+        }
+    });
 
     // Define a route for receiving URLs via POST requests
     app.post('/render', authenticateToken, async (req, res) => {
