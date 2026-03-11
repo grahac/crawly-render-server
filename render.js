@@ -16,7 +16,96 @@ const logServerStats = () => {
 // Log server stats every minute
 setInterval(logServerStats, 60000);
 
-app.use(express.json());
+app.use(express.json({ limit: '2mb' }));
+
+// PDF endpoint: accepts raw HTML, returns PDF binary
+app.post('/pdf', async (req, res) => {
+  const { html, options = {} } = req.body;
+  if (!html) {
+    return res.status(400).json({ error: 'HTML parameter is required.' });
+  }
+
+  const startTime = Date.now();
+  console.log(`[PDF] Starting PDF generation (html length: ${html.length})`);
+
+  const launchOptions = {
+    headless: "new",
+    args: [
+      '--no-sandbox',
+      '--disable-gpu',
+      '--disable-dev-shm-usage',
+      '--disable-setuid-sandbox',
+      '--no-first-run',
+      '--no-zygote',
+    ]
+  };
+
+  if (process.env.CHROME_EXECUTABLE_PATH) {
+    launchOptions.executablePath = process.env.CHROME_EXECUTABLE_PATH;
+  }
+
+  let browser;
+  try {
+    browser = await puppeteer.launch(launchOptions);
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1200, height: 800 });
+
+    // Block ALL outbound requests (SSRF prevention — HTML is self-contained)
+    await page.setRequestInterception(true);
+    page.on('request', (request) => {
+      const url = request.url();
+      if (url.startsWith('data:') || url === 'about:blank') {
+        request.continue();
+      } else {
+        request.abort();
+      }
+    });
+
+    page.on('console', (msg) => {
+      console.log(`[PDF] Page console ${msg.type()}: ${msg.text()}`);
+    });
+
+    page.on('pageerror', (error) => {
+      console.log(`[PDF] Page error: ${error.message}`);
+    });
+
+    await page.setContent(html, { waitUntil: 'domcontentloaded' });
+
+    // Wait for Chart.js completion signal (templates set window.__chartsTotal and increment window.__chartsReady)
+    await page.waitForFunction(() => {
+      const total = window.__chartsTotal || 0;
+      const ready = window.__chartsReady || 0;
+      return ready >= total;
+    }, { timeout: 15000 });
+
+    const pdfBuffer = await page.pdf({
+      format: options.format || 'A4',
+      margin: options.margin || { top: '80px', right: '40px', bottom: '60px', left: '40px' },
+      printBackground: true,
+      displayHeaderFooter: true,
+      headerTemplate: `<div style="width:100%;font-size:9px;color:#6b7280;padding:0 40px;display:flex;justify-content:space-between;">
+        <span>RivalSee AI Visibility Report</span><span class="date"></span></div>`,
+      footerTemplate: `<div style="width:100%;font-size:9px;color:#6b7280;padding:0 40px;text-align:center;">
+        Page <span class="pageNumber"></span> of <span class="totalPages"></span></div>`,
+      timeout: 60000,
+    });
+
+    const elapsed = Date.now() - startTime;
+    console.log(`[PDF] PDF generated successfully (${pdfBuffer.length} bytes, ${elapsed}ms)`);
+    servedRequests++;
+    res.set('Content-Type', 'application/pdf');
+    res.send(pdfBuffer);
+  } catch (error) {
+    errorCount++;
+    const elapsed = Date.now() - startTime;
+    console.log(`[PDF] ERROR after ${elapsed}ms: ${error.message}`);
+    res.status(500).json({ error: 'PDF generation failed: ' + error.message });
+  } finally {
+    if (browser) {
+      await browser.close();
+    }
+  }
+});
 
 app.post('/render', async (req, res) => {
   const { 
