@@ -247,7 +247,7 @@ if (process.env.MAX_CONCURRENCY) {
     };
 
     // PDF endpoint: accepts raw HTML, returns PDF binary
-    app.post('/pdf', async (req, res) => {
+    app.post('/pdf', authenticateToken, async (req, res) => {
         const { html, options = {} } = req.body;
         if (!html) {
             return res.status(400).json({ error: 'HTML parameter is required.' });
