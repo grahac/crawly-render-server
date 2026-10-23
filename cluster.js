@@ -19,7 +19,7 @@ setInterval(logServerStats, 60000);
 
 // Define your launch options here
 const launchOptions = {
-    headless: "new",
+    headless: true,
     args: [
         '--no-sandbox',
         '--disable-gpu',
@@ -261,7 +261,7 @@ if (process.env.MAX_CONCURRENCY) {
         try {
             const puppeteer = require('puppeteer');
             browser = await puppeteer.launch({
-                headless: 'new',
+                headless: true,
                 args: ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage'],
                 ...(process.env.CHROME_EXECUTABLE_PATH && {
                     executablePath: process.env.CHROME_EXECUTABLE_PATH,

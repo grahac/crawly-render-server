@@ -29,7 +29,7 @@ app.post('/pdf', async (req, res) => {
   console.log(`[PDF] Starting PDF generation (html length: ${html.length})`);
 
   const launchOptions = {
-    headless: "new",
+    headless: true,
     args: [
       '--no-sandbox',
       '--disable-gpu',
@@ -125,7 +125,7 @@ app.post('/render', async (req, res) => {
     const startTime = Date.now();
     console.log(`[DEBUG] Starting render for URL: ${url}`);
     const launchOptions = {
-      headless: "new",
+      headless: true,
       args: [
         '--no-sandbox',
         '--disable-gpu',

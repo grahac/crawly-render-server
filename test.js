@@ -16,7 +16,7 @@ const createTestServer = async (port) => {
     concurrency: Cluster.CONCURRENCY_CONTEXT,
     maxConcurrency: 1, // Use a single instance for testing
     puppeteerOptions: {
-      headless: "new",
+      headless: true,
       args: ['--no-sandbox', '--disable-gpu'],
     },
   });
